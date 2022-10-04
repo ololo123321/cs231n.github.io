@@ -120,3 +120,6 @@ runs/
 temp*
 debug_*
 *.swp
+
+# Datasets
+datasets/
