@@ -50,8 +50,8 @@ class LinearClassifier(object):
         # Run stochastic gradient descent to optimize W
         loss_history = []
         for it in range(num_iters):
-            X_batch = None
-            y_batch = None
+            # X_batch = None
+            # y_batch = None
 
             #########################################################################
             # TODO:                                                                 #
@@ -66,7 +66,9 @@ class LinearClassifier(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            pass
+            idx = np.random.choice(X.shape[0], size=batch_size, replace=True)
+            X_batch = X[idx]
+            y_batch = y[idx]
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -81,7 +83,7 @@ class LinearClassifier(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            pass
+            self.W -= grad * learning_rate
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -104,14 +106,15 @@ class LinearClassifier(object):
           array of length N, and each element is an integer giving the predicted
           class.
         """
-        y_pred = np.zeros(X.shape[0])
+        # y_pred = np.zeros(X.shape[0])
         ###########################################################################
         # TODO:                                                                   #
         # Implement this method. Store the predicted labels in y_pred.            #
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        scores = X @ self.W
+        y_pred = scores.argmax(1)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         return y_pred
@@ -131,7 +134,7 @@ class LinearClassifier(object):
         - loss as a single float
         - gradient with respect to self.W; an array of the same shape as W
         """
-        pass
+        raise NotImplementedError
 
 
 class LinearSVM(LinearClassifier):

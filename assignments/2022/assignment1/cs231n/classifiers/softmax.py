@@ -34,7 +34,26 @@ def softmax_loss_naive(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    num_train = X.shape[0]
+    num_classes = W.shape[1]
+
+    for i in range(num_train):
+        xi = X[i]
+        scores = xi.dot(W)
+        m = scores.max()
+        scores_exp = np.exp(scores - m)
+        scores_exp_sum = scores_exp.sum()
+        probs = scores_exp / scores_exp_sum
+        loss += -np.log(probs[y[i]])
+        for j in range(num_classes):
+            if j == y[i]:
+                dW[:, j] += xi * (probs[j] - 1.0)
+            else:
+                dW[:, j] += xi * probs[j]
+    loss /= num_train
+    loss += reg * np.square(W).sum()
+    dW /= num_train
+    dW += 2 * reg * W
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -48,8 +67,8 @@ def softmax_loss_vectorized(W, X, y, reg):
     Inputs and outputs are the same as softmax_loss_naive.
     """
     # Initialize the loss and gradient to zero.
-    loss = 0.0
-    dW = np.zeros_like(W)
+    # loss = 0.0
+    # dW = np.zeros_like(W)
 
     #############################################################################
     # TODO: Compute the softmax loss and its gradient using no explicit loops.  #
@@ -59,7 +78,19 @@ def softmax_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    num_train = X.shape[0]
+    scores = X @ W  # [N, C]
+    m = scores.max(1, keepdims=True)
+    scores_exp = np.exp(scores - m)
+    scores_exp_sum = scores_exp.sum(1, keepdims=True)
+    probs = scores_exp / scores_exp_sum
+    loss = -np.log(probs[range(num_train), y]).mean()
+
+    y_oh = np.zeros_like(probs)
+    y_oh[range(num_train), y] = 1.0
+    dW = X.T @ (probs - y_oh)  # [D, C]
+    dW /= num_train
+    dW += 2 * reg * W
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 

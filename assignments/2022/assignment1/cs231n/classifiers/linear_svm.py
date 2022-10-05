@@ -37,10 +37,14 @@ def svm_loss_naive(W, X, y, reg):
             margin = scores[j] - correct_class_score + 1  # note delta = 1
             if margin > 0:
                 loss += margin
+                # loss depends on W[:, j] and W[:, y[i]]
+                dW[:, j] += X[i]  # my code
+                dW[:, y[i]] -= X[i]  # my code
 
     # Right now the loss is a sum over all training examples, but we want it
     # to be an average instead so we divide by num_train.
     loss /= num_train
+    dW /= num_train  # my code
 
     # Add regularization to the loss.
     loss += reg * np.sum(W * W)
@@ -55,7 +59,7 @@ def svm_loss_naive(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dW += 2 * reg * W
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -68,8 +72,8 @@ def svm_loss_vectorized(W, X, y, reg):
 
     Inputs and outputs are the same as svm_loss_naive.
     """
-    loss = 0.0
-    dW = np.zeros(W.shape)  # initialize the gradient as zero
+    # loss = 0.0
+    # dW = np.zeros(W.shape)  # initialize the gradient as zero
 
     #############################################################################
     # TODO:                                                                     #
@@ -78,7 +82,17 @@ def svm_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    delta = 1
+    num_train = X.shape[0]
+
+    scores = X @ W  # [N, C]
+    correct_class_idx = np.s_[range(num_train), y]
+    correct_class_score = scores[correct_class_idx]  # [N]
+    margin = scores - correct_class_score[:, None] + delta  # [N, C]
+    margin = np.maximum(0.0, margin)
+    margin[correct_class_idx] = 0.0  # because of adding delta
+    loss = margin.sum() / num_train
+    loss += reg * np.square(W).sum()
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -93,7 +107,21 @@ def svm_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    # Задача расчёта dW сводится к тому, чтобы понять, с какими целочисленными весами
+    # нужно сложить элементы столбца X[:, j] для получения dW[j, k].
+    # Пусть w_k - искомый вектор весов размерности num_train для k-ого классификатора. Тогда
+    # w_k[i] = a - b, где:
+    # a = 1, если margin[i, k] > 0, 0 - иначе
+    # b = число положительных элементов строки margin[i], если y[i] == k, 0 - иначе.
+
+    mask_sum = (margin > 0.0).astype(float)  # [N, C]
+    mask_div = np.zeros_like(mask_sum)  # [N, C]
+    mask_div[correct_class_idx] = mask_sum.sum(1)
+
+    dW = X.T @ (mask_sum - mask_div)
+
+    dW /= num_train
+    dW += 2 * reg * W
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
