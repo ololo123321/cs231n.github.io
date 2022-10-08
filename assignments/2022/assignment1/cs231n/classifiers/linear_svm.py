@@ -115,11 +115,9 @@ def svm_loss_vectorized(W, X, y, reg):
     # b = число положительных элементов строки margin[i], если y[i] == k, 0 - иначе.
 
     mask_sum = (margin > 0.0).astype(float)  # [N, C]
-    mask_div = np.zeros_like(mask_sum)  # [N, C]
-    mask_div[correct_class_idx] = mask_sum.sum(1)
-
-    dW = X.T @ (mask_sum - mask_div)
-
+    mask_sub = np.zeros_like(mask_sum)  # [N, C]
+    mask_sub[correct_class_idx] = mask_sum.sum(1)
+    dW = X.T @ (mask_sum - mask_sub)
     dW /= num_train
     dW += 2 * reg * W
 

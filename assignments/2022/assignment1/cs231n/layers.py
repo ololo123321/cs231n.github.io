@@ -2,7 +2,6 @@ from builtins import range
 import numpy as np
 
 
-
 def affine_forward(x, w, b):
     """
     Computes the forward pass for an affine (fully-connected) layer.
@@ -21,14 +20,14 @@ def affine_forward(x, w, b):
     - out: output, of shape (N, M)
     - cache: (x, w, b)
     """
-    out = None
+    # out = None
     ###########################################################################
     # TODO: Implement the affine forward pass. Store the result in out. You   #
     # will need to reshape the input into rows.                               #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out = x.reshape(x.shape[0], -1) @ w + b
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -55,13 +54,15 @@ def affine_backward(dout, cache):
     - db: Gradient with respect to b, of shape (M,)
     """
     x, w, b = cache
-    dx, dw, db = None, None, None
+    # dx, dw, db = None, None, None
     ###########################################################################
     # TODO: Implement the affine backward pass.                               #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dx = dout.dot(w.T).reshape(x.shape)  # [N, M] * [M, D] = [N, D]
+    dw = x.reshape(x.shape[0], -1).T @ dout  # [D, N] * [N, M] = [D, M]
+    db = dout.sum(0)  # [M]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -81,13 +82,13 @@ def relu_forward(x):
     - out: Output, of the same shape as x
     - cache: x
     """
-    out = None
+    # out = None
     ###########################################################################
     # TODO: Implement the ReLU forward pass.                                  #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out = np.maximum(0.0, x)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -114,7 +115,7 @@ def relu_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dx = dout * (x > 0.0).astype(dout.dtype)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -766,14 +767,27 @@ def svm_loss(x, y):
     - loss: Scalar giving the loss
     - dx: Gradient of the loss with respect to x
     """
-    loss, dx = None, None
+    # loss, dx = None, None
 
     ###########################################################################
     # TODO: Copy over your solution from A1.
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    delta = 1
+    num_train = x.shape[0]
+
+    correct_class_idx = np.s_[range(num_train), y]
+    correct_class_score = x[correct_class_idx]  # [N]
+    margin = x - correct_class_score[:, None] + delta  # [N, C]
+    margin = np.maximum(0.0, margin)
+    margin[correct_class_idx] = 0.0  # because of adding delta
+    loss = margin.sum() / num_train
+
+    mask = (margin > 0.0).astype(float)
+    dx = mask
+    dx[correct_class_idx] = -mask.sum(1)
+    dx /= num_train
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -796,14 +810,24 @@ def softmax_loss(x, y):
     - loss: Scalar giving the loss
     - dx: Gradient of the loss with respect to x
     """
-    loss, dx = None, None
+    # loss, dx = None, None
 
     ###########################################################################
     # TODO: Copy over your solution from A1.
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    num_train = x.shape[0]
+    m = x.max(1, keepdims=True)
+    scores_exp = np.exp(x - m)
+    scores_exp_sum = scores_exp.sum(1, keepdims=True)
+    probs = scores_exp / scores_exp_sum
+    correct_class_idx = np.s_[range(num_train), y]
+    loss = -np.log(probs[correct_class_idx]).mean()
+
+    dx = probs.copy()
+    dx[correct_class_idx] -= 1.0
+    dx /= num_train
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
