@@ -227,15 +227,16 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        sample_mean = np.mean(x, axis=0)  # [D]
+        ax = 0  # for cache to re-use in layernorm
+        sample_mean = x.mean(ax, keepdims=True)  # [D]
         x_centered = x - sample_mean
-        sample_var = np.square(x_centered).mean(0)  # [D]
+        sample_var = np.square(x_centered).mean(ax, keepdims=True)  # [D]
         inv_std = (sample_var + eps) ** -0.5
         x_norm = x_centered * inv_std
         out = x_norm * gamma + beta
         running_mean = running_mean * momentum + sample_mean * (1.0 - momentum)
         running_var = running_var * momentum + sample_var * (1.0 - momentum)
-        cache = x, x_norm, x_centered, inv_std, gamma, eps
+        cache = x, x_norm, x_centered, inv_std, gamma, eps, ax
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -292,11 +293,11 @@ def batchnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    x, x_norm, x_centered, inv_std, gamma, eps = cache
+    x, x_norm, x_centered, inv_std, gamma, eps, ax = cache
     dgamma = (dout * x_norm).sum(0)  # [D]
     dbeta = dout.sum(0)  # [D]
 
-    dx = -dout.mean(0) - (x_centered * dout).mean(0) * x_centered * inv_std ** 2 + dout
+    dx = -dout.mean(ax, keepdims=True) - (x_centered * dout).mean(ax, keepdims=True) * x_centered * inv_std ** 2 + dout
     dx *= inv_std
     dx *= gamma
 
@@ -332,13 +333,13 @@ def batchnorm_backward_alt(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    x, x_norm, x_centered, inv_std, gamma, eps = cache
+    x, x_norm, x_centered, inv_std, gamma, eps, ax = cache
     dgamma = (dout * x_norm).sum(0)  # [D]
     dbeta = dout.sum(0)  # [D]
 
-    dx = -dout.mean(0) - (x_centered * dout).mean(0) * x_centered * inv_std ** 2 + dout
+    # rewrite so in order to re-use in layernorm_backward
+    dx = -(dout * gamma).mean(ax, keepdims=True) - (x_centered * dout * gamma).mean(ax, keepdims=True) * x_centered * inv_std ** 2 + dout * gamma
     dx *= inv_std
-    dx *= gamma
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -369,7 +370,7 @@ def layernorm_forward(x, gamma, beta, ln_param):
     - out: of shape (N, D)
     - cache: A tuple of values needed in the backward pass
     """
-    out, cache = None, None
+    # out, cache = None, None
     eps = ln_param.get("eps", 1e-5)
     ###########################################################################
     # TODO: Implement the training-time forward pass for layer norm.          #
@@ -383,7 +384,14 @@ def layernorm_forward(x, gamma, beta, ln_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    ax = 1
+    sample_mean = x.mean(ax, keepdims=True)  # [N]
+    x_centered = x - sample_mean
+    sample_var = np.square(x_centered).mean(ax, keepdims=True)  # [N]
+    inv_std = (sample_var + eps) ** -0.5
+    x_norm = x_centered * inv_std
+    out = x_norm * gamma + beta
+    cache = x, x_norm, x_centered, inv_std, gamma, eps, ax
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -407,7 +415,7 @@ def layernorm_backward(dout, cache):
     - dgamma: Gradient with respect to scale parameter gamma, of shape (D,)
     - dbeta: Gradient with respect to shift parameter beta, of shape (D,)
     """
-    dx, dgamma, dbeta = None, None, None
+    # dx, dgamma, dbeta = None, None, None
     ###########################################################################
     # TODO: Implement the backward pass for layer norm.                       #
     #                                                                         #
@@ -417,7 +425,7 @@ def layernorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dx, dgamma, dbeta = batchnorm_backward_alt(dout, cache)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
