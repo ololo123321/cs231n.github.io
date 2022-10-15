@@ -553,14 +553,30 @@ def conv_forward_naive(x, w, b, conv_param):
       W' = 1 + (W + 2 * pad - WW) / stride
     - cache: (x, w, b, conv_param)
     """
-    out = None
+    # out = None
     ###########################################################################
     # TODO: Implement the convolutional forward pass.                         #
     # Hint: you can use the function np.pad for padding.                      #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    stride = conv_param["stride"]
+    pad = conv_param["pad"]
+    x_pad = np.pad(x, [(0, 0), (0, 0), (pad, pad), (pad, pad)], mode="constant", constant_values=0)
+
+    N, C, H, W = x.shape
+    F, _, hh, ww = w.shape
+    h_out = 1 + (H + 2 * pad - hh) // stride
+    w_out = 1 + (W + 2 * pad - ww) // stride
+
+    out = np.zeros((N, F, h_out, w_out))
+    for i in range(N):
+        for j in range(F):
+            for k in range(h_out):
+                for m in range(w_out):
+                    ks = k * stride
+                    ms = m * stride
+                    out[i, j, k, m] = np.sum(x_pad[i, :, ks:ks + hh, ms:ms + ww] * w[j]) + b[j]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -582,13 +598,35 @@ def conv_backward_naive(dout, cache):
     - dw: Gradient with respect to w
     - db: Gradient with respect to b
     """
-    dx, dw, db = None, None, None
+    # dx, dw, db = None, None, None
     ###########################################################################
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x, w, b, conv_param = cache
+    stride = conv_param["stride"]
+    pad = conv_param["pad"]
+    x_pad = np.pad(x, [(0, 0), (0, 0), (pad, pad), (pad, pad)], mode="constant", constant_values=0)
+
+    N, F, h_out, w_out = dout.shape
+    _, _, hh, ww = w.shape
+
+    dx = np.zeros_like(x_pad)
+    dw = np.zeros_like(w)
+    db = np.zeros_like(b)
+    for i in range(N):
+        for j in range(F):
+            for k in range(h_out):
+                for m in range(w_out):
+                    dout_it = dout[i, j, k, m]
+                    ks = k * stride
+                    ms = m * stride
+                    x_slice = np.s_[i, :, ks:ks + hh, ms:ms + ww]
+                    dx[x_slice] += w[j] * dout_it
+                    dw[j] += x_pad[x_slice] * dout_it
+                    db[j] += dout_it
+    dx = dx[:, :, pad:-pad, pad:-pad]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
