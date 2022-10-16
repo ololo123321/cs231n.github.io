@@ -142,7 +142,7 @@ class FullyConnectedNet(object):
         if self.normalization == "batchnorm":
             for bn_param in self.bn_params:
                 bn_param["mode"] = mode
-        scores = None
+        # scores = None
         ############################################################################
         # TODO: Implement the forward pass for the fully connected net, computing  #
         # the class scores for X and storing them in the scores variable.          #

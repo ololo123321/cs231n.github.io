@@ -227,16 +227,23 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        ax = 0  # for cache to re-use in layernorm
-        sample_mean = x.mean(ax, keepdims=True)  # [D]
+        # ax - axis for aggregation values for dx
+        # ax_sum - axis for aggregation values for dgamma, dbeta
+        # BatchNorm is always reduced to 2d case, where both ax and ax_sum are zero,
+        # but in LayerNorm and GroupNorm they are different.
+        # In order to share backward pass we need to have the same cache.
+        ax = 0
+        ax_sum = 0
+
+        sample_mean = np.mean(x, ax, keepdims=True)  # [D]
         x_centered = x - sample_mean
-        sample_var = np.square(x_centered).mean(ax, keepdims=True)  # [D]
+        sample_var = np.mean(np.square(x_centered), ax, keepdims=True)  # [D]
         inv_std = (sample_var + eps) ** -0.5
         x_norm = x_centered * inv_std
         out = x_norm * gamma + beta
         running_mean = running_mean * momentum + sample_mean * (1.0 - momentum)
         running_var = running_var * momentum + sample_var * (1.0 - momentum)
-        cache = x, x_norm, x_centered, inv_std, gamma, eps, ax
+        cache = x, x_norm, x_centered, inv_std, gamma, eps, ax, ax_sum
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -293,9 +300,9 @@ def batchnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    x, x_norm, x_centered, inv_std, gamma, eps, ax = cache
-    dgamma = (dout * x_norm).sum(0)  # [D]
-    dbeta = dout.sum(0)  # [D]
+    x, x_norm, x_centered, inv_std, gamma, eps, ax, ax_sum = cache
+    dgamma = (dout * x_norm).sum(ax_sum)  # [D]
+    dbeta = dout.sum(ax_sum)  # [D]
 
     dx = -dout.mean(ax, keepdims=True) - (x_centered * dout).mean(ax, keepdims=True) * x_centered * inv_std ** 2 + dout
     dx *= inv_std
@@ -313,7 +320,7 @@ def batchnorm_backward_alt(dout, cache):
     """Alternative backward pass for batch normalization.
 
     For this implementation you should work out the derivatives for the batch
-    normalizaton backward pass on paper and simplify as much as possible. You
+    normalization backward pass on paper and simplify as much as possible. You
     should be able to derive a simple expression for the backward pass.
     See the jupyter notebook for more hints.
 
@@ -333,12 +340,15 @@ def batchnorm_backward_alt(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    x, x_norm, x_centered, inv_std, gamma, eps, ax = cache
-    dgamma = (dout * x_norm).sum(0)  # [D]
-    dbeta = dout.sum(0)  # [D]
+    x, x_norm, x_centered, inv_std, gamma, eps, ax, ax_sum = cache
+    dgamma = np.sum(dout * x_norm, ax_sum, keepdims=False)
+    dbeta = np.sum(dout, ax_sum, keepdims=False)
 
-    # rewrite so in order to re-use in layernorm_backward
-    dx = -(dout * gamma).mean(ax, keepdims=True) - (x_centered * dout * gamma).mean(ax, keepdims=True) * x_centered * inv_std ** 2 + dout * gamma
+    # 1. layernorm: per-example value is dependent from whole gamma -> need to move it into mean op.
+    # 2. groupnorm: ax is a tuple, a.mean(ax) -> TypeError: an integer is required (got type list).
+    dx = np.mean(-dout * gamma, ax, keepdims=True) \
+        - np.mean(x_centered * dout * gamma, ax, keepdims=True) \
+        * x_centered * inv_std ** 2 + dout * gamma
     dx *= inv_std
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -384,14 +394,16 @@ def layernorm_forward(x, gamma, beta, ln_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    ax = 1
-    sample_mean = x.mean(ax, keepdims=True)  # [N]
+    ax = ln_param.get("ax", 1)
+    ax_sum = ln_param.get("ax_sum", 0)
+
+    sample_mean = np.mean(x, ax, keepdims=True)
     x_centered = x - sample_mean
-    sample_var = np.square(x_centered).mean(ax, keepdims=True)  # [N]
+    sample_var = np.mean(np.square(x_centered), ax, keepdims=True)
     inv_std = (sample_var + eps) ** -0.5
     x_norm = x_centered * inv_std
     out = x_norm * gamma + beta
-    cache = x, x_norm, x_centered, inv_std, gamma, eps, ax
+    cache = x, x_norm, x_centered, inv_std, gamma, eps, ax, ax_sum
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -426,6 +438,8 @@ def layernorm_backward(dout, cache):
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     dx, dgamma, dbeta = batchnorm_backward_alt(dout, cache)
+    # dgamma = dgamma.squeeze(0)
+    # dbeta = dbeta.squeeze(0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -751,7 +765,7 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     - out: Output data, of shape (N, C, H, W)
     - cache: Values needed for the backward pass
     """
-    out, cache = None, None
+    # out, cache = None, None
 
     ###########################################################################
     # TODO: Implement the forward pass for spatial batch normalization.       #
@@ -762,7 +776,11 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    # normalization per [C] over [N, H, W]
+    N, C, H, W = x.shape
+    x_t = x.transpose(0, 2, 3, 1).reshape(-1, C)  # [N, H, W, C] -> [N * H * W, C]
+    out, cache = batchnorm_forward(x_t, gamma, beta, bn_param)
+    out = out.reshape(N, H, W, C).transpose(0, 3, 1, 2)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -784,7 +802,7 @@ def spatial_batchnorm_backward(dout, cache):
     - dgamma: Gradient with respect to scale parameter, of shape (C,)
     - dbeta: Gradient with respect to shift parameter, of shape (C,)
     """
-    dx, dgamma, dbeta = None, None, None
+    # dx, dgamma, dbeta = None, None, None
 
     ###########################################################################
     # TODO: Implement the backward pass for spatial batch normalization.      #
@@ -795,7 +813,10 @@ def spatial_batchnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, C, H, W = dout.shape
+    dout_t = dout.transpose(0, 2, 3, 1).reshape(-1, C)
+    dx, dgamma, dbeta = batchnorm_backward_alt(dout_t, cache)
+    dx = dx.reshape(N, H, W, C).transpose(0, 3, 1, 2)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -817,7 +838,7 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
     - x: Input data of shape (N, C, H, W)
     - gamma: Scale parameter, of shape (1, C, 1, 1)
     - beta: Shift parameter, of shape (1, C, 1, 1)
-    - G: Integer mumber of groups to split into, should be a divisor of C
+    - G: Integer number of groups to split into, should be a divisor of C
     - gn_param: Dictionary with the following keys:
       - eps: Constant for numeric stability
 
@@ -825,8 +846,8 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
     - out: Output data, of shape (N, C, H, W)
     - cache: Values needed for the backward pass
     """
-    out, cache = None, None
-    eps = gn_param.get("eps", 1e-5)
+    # out, cache = None, None
+    # eps = gn_param.get("eps", 1e-5)
     ###########################################################################
     # TODO: Implement the forward pass for spatial group normalization.       #
     # This will be extremely similar to the layer norm implementation.        #
@@ -836,7 +857,16 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    # normalization per [N, G] over [C // G, H, W]
+    N, _, H, W = x.shape
+    x_t = x.reshape(N, G, -1, H, W)
+    gamma_t = gamma.reshape(1, G, -1, 1, 1)
+    beta_t = beta.reshape(1, G, -1, 1, 1)
+    gn_param["ax"] = (2, 3, 4)
+    gn_param["ax_sum"] = (0, 3, 4)
+    out, cache = layernorm_forward(x_t, gamma_t, beta_t, gn_param)
+    out = out.reshape(N, -1, H, W)
+    cache = cache, G
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -857,7 +887,7 @@ def spatial_groupnorm_backward(dout, cache):
     - dgamma: Gradient with respect to scale parameter, of shape (1, C, 1, 1)
     - dbeta: Gradient with respect to shift parameter, of shape (1, C, 1, 1)
     """
-    dx, dgamma, dbeta = None, None, None
+    # dx, dgamma, dbeta = None, None, None
 
     ###########################################################################
     # TODO: Implement the backward pass for spatial group normalization.      #
@@ -865,7 +895,13 @@ def spatial_groupnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    cache_, G = cache
+    N, _, H, W = dout.shape
+    dout_t = dout.reshape(N, G, -1, H, W)
+    dx, dgamma, dbeta = batchnorm_backward_alt(dout_t, cache_)
+    dx = dx.reshape(N, -1, H, W)
+    dgamma = dgamma.reshape(1, -1, 1, 1)
+    dbeta = dbeta.reshape(1, -1, 1, 1)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
