@@ -655,13 +655,27 @@ def max_pool_forward_naive(x, pool_param):
       W' = 1 + (W - pool_width) / stride
     - cache: (x, pool_param)
     """
-    out = None
+    # out = None
     ###########################################################################
     # TODO: Implement the max-pooling forward pass                            #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, C, H, W = x.shape
+    h = pool_param["pool_height"]
+    w = pool_param["pool_width"]
+    stride = pool_param["stride"]
+    h_out = 1 + (H - h) // stride
+    w_out = 1 + (W - w) // stride
+
+    out = np.zeros((N, C, h_out, w_out))
+    for i in range(N):
+        for j in range(C):
+            for k in range(h_out):
+                for m in range(w_out):
+                    ks = k * stride
+                    ms = m * stride
+                    out[i, j, k, m] = x[i, j, ks:ks + h, ms:ms + w].max()
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -681,13 +695,33 @@ def max_pool_backward_naive(dout, cache):
     Returns:
     - dx: Gradient with respect to x
     """
-    dx = None
+    # dx = None
     ###########################################################################
     # TODO: Implement the max-pooling backward pass                           #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x, pool_param = cache
+    N, C, H, W = x.shape
+    h = pool_param["pool_height"]
+    w = pool_param["pool_width"]
+    stride = pool_param["stride"]
+    h_out = 1 + (H - h) // stride
+    w_out = 1 + (W - w) // stride
+
+    dx = np.zeros_like(x)
+    for i in range(N):
+        for j in range(C):
+            for k in range(h_out):
+                for m in range(w_out):
+                    dout_it = dout[i, j, k, m]
+                    ks = k * stride
+                    ms = m * stride
+                    idx = x[i, j, ks:ks + h, ms:ms + w].argmax()
+                    # position of max element in h x w rectangle.
+                    # np.unravel_index - numpy analogue for n dimensions.
+                    ko, mo = divmod(idx, w)
+                    dx[i, j, ks + ko, ms + mo] = dout_it
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
