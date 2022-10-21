@@ -118,7 +118,7 @@ class CaptioningRNN:
         # Weight and bias for the hidden-to-vocab transformation.
         W_vocab, b_vocab = self.params["W_vocab"], self.params["b_vocab"]
 
-        loss, grads = 0.0, {}
+        # loss, grads = 0.0, {}
         ############################################################################
         # TODO: Implement the forward and backward passes for the CaptioningRNN.   #
         # In the forward pass you will need to do the following:                   #
@@ -148,7 +148,32 @@ class CaptioningRNN:
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        h0, cache_affine = affine_forward(features, W_proj, b_proj)  # (1), [N, H]
+        x, cache_embeding = word_embedding_forward(captions_in, W_embed)  # (2), [N, T, D]
+
+        # (1), [N, T, H]
+        if self.cell_type == "rnn":
+            rnn_forward_fn = rnn_forward
+            rnn_backward_fn = rnn_backward
+        elif self.cell_type == "lstm":
+            rnn_forward_fn = lstm_forward
+            rnn_backward_fn = lstm_backward
+        else:
+            raise NotImplementedError
+        h, cache_rnn = rnn_forward_fn(x, h0, Wx, Wh, b)
+
+        # (4), [N, T, V]
+        logits, cache_temporal_affine = temporal_affine_forward(h, W_vocab, b_vocab)
+
+        # (5)
+        loss, dout = temporal_softmax_loss(logits, captions_out, mask)
+
+        # backward
+        grads = {}
+        dout, grads["W_vocab"], grads["b_vocab"] = temporal_affine_backward(dout, cache_temporal_affine)
+        dout, dh0, grads["Wx"], grads["Wh"], grads["b"] = rnn_backward_fn(dout, cache_rnn)
+        grads["W_embed"] = word_embedding_backward(dout, cache_embeding)
+        dout, grads["W_proj"], grads["b_proj"] = affine_backward(dh0, cache_affine)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -216,7 +241,31 @@ class CaptioningRNN:
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        h, _ = affine_forward(features, W_proj, b_proj)  # [N, H]
+
+        kw = {"x": None, "prev_h": h, "Wx": Wx, "Wh": Wh, "b": b}
+        if self.cell_type == "rnn":
+            rnn = rnn_step_forward
+        elif self.cell_type == "lstm":
+            rnn = lstm_step_forward
+            kw["prev_c"] = np.zeros_like(h)
+        else:
+            raise NotImplementedError
+
+        ids = np.full(N, fill_value=self._start)
+        for t in range(max_length):
+            x, _ = word_embedding_forward(ids[:, None], W_embed)  # [N, 1, D]
+            kw["x"] = x.squeeze(1)  # [N, D]
+            rnn_out = rnn(**kw)
+            if self.cell_type == "rnn":
+                kw["prev_h"], _ = rnn_out
+            elif self.cell_type == "lstm":
+                kw["prev_h"], kw["prev_c"], _ = rnn_out
+            else:
+                raise NotImplementedError
+            logits, _ = affine_forward(kw["prev_h"], W_vocab, b_vocab)  # [N, V]
+            ids = logits.argmax(1)  # [N]
+            captions[:, t] = ids
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
